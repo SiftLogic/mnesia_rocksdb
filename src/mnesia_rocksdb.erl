@@ -127,14 +127,6 @@
 %% DEFINES
 %% ----------------------------------------------------------------------------
 
-%% Name of the Rocksdb interface module; defaults to rocksdb but can be
-%% configured by passing -DROCKSDB_MODULE=<name_of_module> to erlc.
--ifdef(ROCKSDB_MODULE).
--define(rocksdb, ?ROCKSDB_MODULE).
--else.
--define(rocksdb, rocksdb). %% Name of the Rocksdb interface module
--endif.
-
 %% Data and meta data (a.k.a. info) are stored in the same table.
 %% This is a table of the first byte in data
 %% 0    = before meta data
@@ -226,7 +218,7 @@ show_table(Alias, Tab, Limit) ->
 i_show_table(_, _, 0) ->
     {error, skipped_some};
 i_show_table(I, Move, Limit) ->
-    case ?rocksdb:iterator_move(I, Move) of
+    case rocksdb:iterator_move(I, Move) of
         {ok, EncKey, EncVal} ->
             {Type,Val} =
                 case EncKey of
@@ -609,7 +601,7 @@ first(Alias, Tab) ->
 
 %% PRIVATE ITERATOR
 i_first(I) ->
-    case ?rocksdb:iterator_move(I, <<?DATA_START>>) of
+    case rocksdb:iterator_move(I, <<?DATA_START>>) of
 	{ok, First, _} ->
 	    decode_key(First);
 	_ ->
@@ -634,7 +626,7 @@ last(Alias, Tab) ->
 
 %% PRIVATE ITERATOR
 i_last(I) ->
-    case ?rocksdb:iterator_move(I, last) of
+    case rocksdb:iterator_move(I, last) of
 	{ok, << ?INFO_TAG, _/binary >>, _} ->
 	    '$end_of_table';
 	{ok, Last, _} ->
@@ -651,7 +643,7 @@ lookup(Alias, Tab, Key) ->
     case Type of
 	bag -> lookup_bag(Ref, Key, Enc, keypos(Tab));
 	_ ->
-	    case ?rocksdb:get(Ref, Enc, []) of
+	    case rocksdb:get(Ref, Enc, []) of
 		{ok, EncVal} ->
 		    [setelement(keypos(Tab), decode_val(EncVal), Key)];
 		_ ->
@@ -663,17 +655,17 @@ lookup_bag(Ref, K, Enc, KP) ->
     Sz = byte_size(Enc),
     with_iterator(
       Ref, fun(I) ->
-		   lookup_bag_(Sz, Enc, ?rocksdb:iterator_move(I, Enc),
+		   lookup_bag_(Sz, Enc, rocksdb:iterator_move(I, Enc),
 			       K, I, KP)
 	   end).
 
 lookup_bag_(Sz, Enc, {ok, Enc, _}, K, I, KP) ->
-    lookup_bag_(Sz, Enc, ?rocksdb:iterator_move(I, next), K, I, KP);
+    lookup_bag_(Sz, Enc, rocksdb:iterator_move(I, next), K, I, KP);
 lookup_bag_(Sz, Enc, Res, K, I, KP) ->
     case Res of
 	{ok, <<Enc:Sz/binary, _:?BAG_CNT>>, V} ->
 	    [setelement(KP, decode_val(V), K)|
-	     lookup_bag_(Sz, Enc, ?rocksdb:iterator_move(I, next), K, I, KP)];
+	     lookup_bag_(Sz, Enc, rocksdb:iterator_move(I, next), K, I, KP)];
 	_ ->
 	    []
     end.
@@ -707,9 +699,9 @@ next(Alias, Tab, Key) ->
 
 %% PRIVATE ITERATOR
 i_next(I, EncKey, Key) ->
-    case ?rocksdb:iterator_move(I, EncKey) of
+    case rocksdb:iterator_move(I, EncKey) of
         {ok, EncKey, _} ->
-            i_next_loop(?rocksdb:iterator_move(I, next), I, Key);
+            i_next_loop(rocksdb:iterator_move(I, next), I, Key);
         Other ->
             i_next_loop(Other, I, Key)
     end.
@@ -717,7 +709,7 @@ i_next(I, EncKey, Key) ->
 i_next_loop({ok, EncKey, _}, I, Key) ->
     case decode_key(EncKey) of
         Key ->
-            i_next_loop(?rocksdb:iterator_move(I, next), I, Key);
+            i_next_loop(rocksdb:iterator_move(I, next), I, Key);
         NextKey ->
             NextKey
     end;
@@ -731,7 +723,7 @@ prev(Alias, Tab, Key0) ->
 
 %% PRIVATE ITERATOR
 i_prev(I, Key) ->
-    case ?rocksdb:iterator_move(I, Key) of
+    case rocksdb:iterator_move(I, Key) of
 	{ok, _, _} ->
 	    i_move_to_prev(I, Key);
 	{error, invalid_iterator} ->
@@ -740,7 +732,7 @@ i_prev(I, Key) ->
 
 %% PRIVATE ITERATOR
 i_move_to_prev(I, Key) ->
-    case ?rocksdb:iterator_move(I, prev) of
+    case rocksdb:iterator_move(I, prev) of
 	{ok, << ?INFO_TAG, _/binary >>, _} ->
 	    '$end_of_table';
 	{ok, Prev, _} when Prev < Key ->
@@ -778,7 +770,7 @@ select(Alias, Tab, Ms, Limit) when Limit==infinity; is_integer(Limit) ->
 
 slot(Alias, Tab, Pos) when is_integer(Pos), Pos >= 0 ->
     {Ref, Type} = get_ref(Alias, Tab),
-    First = fun(I) -> ?rocksdb:iterator_move(I, <<?DATA_START>>) end,
+    First = fun(I) -> rocksdb:iterator_move(I, <<?DATA_START>>) end,
     F = case Type of
             bag -> fun(I) -> slot_iter_set(First(I), I, 0, Pos) end;
             _   -> fun(I) -> slot_iter_set(First(I), I, 0, Pos) end
@@ -793,7 +785,7 @@ slot(_, _, _) ->
 slot_iter_set({ok, K, V}, _I, P, P) ->
     [setelement(2, decode_val(V), decode_key(K))];
 slot_iter_set({ok, _, _}, I, P1, P) when P1 < P ->
-    slot_iter_set(?rocksdb:iterator_move(I, next), I, P1+1, P);
+    slot_iter_set(rocksdb:iterator_move(I, next), I, P1+1, P);
 slot_iter_set(Res, _, _, _) when element(1, Res) =/= ok ->
     '$end_of_table'.
 
@@ -808,12 +800,12 @@ update_counter(Alias, Tab, C, Val) when is_integer(Val) ->
 %% server-side part
 do_update_counter(C, Val, Ref) ->
     Enc = encode_key(C),
-    case ?rocksdb:get(Ref, Enc, [{fill_cache, true}]) of
+    case rocksdb:get(Ref, Enc, [{fill_cache, true}]) of
 	{ok, EncVal} ->
 	    case decode_val(EncVal) of
 		{_, _, Old} = Rec when is_integer(Old) ->
 		    Res = Old+Val,
-		    ?rocksdb:put(Ref, Enc,
+		    rocksdb:put(Ref, Enc,
 				 encode_val(
 				   setelement(3, Rec, Res)),
 				 []),
@@ -829,18 +821,18 @@ do_update_counter(C, Val, Ref) ->
 
 %% key+data iterator: iterator_move/2 returns {ok, EncKey, EncVal}
 with_iterator(Ref, F) ->
-    {ok, I} = ?rocksdb:iterator(Ref, []),
+    {ok, I} = rocksdb:iterator(Ref, []),
     try F(I)
     after
-        ?rocksdb:iterator_close(I)
+        rocksdb:iterator_close(I)
     end.
 
 %% keys_only iterator: iterator_move/2 returns {ok, EncKey}
 %% with_keys_only_iterator(Ref, F) ->
-%%     {ok, I} = ?rocksdb:iterator(Ref, [], keys_only),
+%%     {ok, I} = rocksdb:iterator(Ref, [], keys_only),
 %%     try F(I)
 %%     after
-%%         ?rocksdb:iterator_close(I)
+%%         rocksdb:iterator_close(I)
 %%     end.
 
 %% TODO - use with_keys_only_iterator for match_delete
@@ -968,7 +960,7 @@ code_change(_FromVsn, St, _Extra) ->
 
 terminate(_Reason, #st{ref = Ref}) ->
     if Ref =/= undefined ->
-	    ?rocksdb:close(Ref);
+	    rocksdb:close(Ref);
        true -> ok
     end,
     ok.
@@ -1030,7 +1022,7 @@ open_rocksdb(MPd, Opts, Retries) ->
 open_db(_, _, 0, LastError) ->
     {error, LastError};
 open_db(MPd, Opts, RetriesLeft, _) ->
-    case ?rocksdb:open(MPd, Opts) of
+    case rocksdb:open(MPd, Opts) of
         {ok, Ref} ->
             ?dbg("~p: Open - Rocksdb: ~s~n  -> {ok, ~p}~n",
                  [self(), MPd, Ref]),
@@ -1072,7 +1064,7 @@ open_db(MPd, Opts, RetriesLeft, _) ->
 rocksdb_close(undefined) ->
     ok;
 rocksdb_close(Ref) ->
-    Res = ?rocksdb:close(Ref),
+    Res = rocksdb:close(Ref),
     erlang:garbage_collect(),
     Res.
 
@@ -1091,7 +1083,7 @@ destroy_db(MPd, Opts, Retries) ->
 destroy_db(_, _, 0, LastError) ->
     {error, LastError};
 destroy_db(MPd, Opts, RetriesLeft, _) ->
-    case ?rocksdb:destroy(MPd, Opts) of
+    case rocksdb:destroy(MPd, Opts) of
 	ok ->
 	    ok;
         %% Check specifically for lock error, this can be caused if
@@ -1123,7 +1115,7 @@ rocksdb_to_ets(Ref, Ets) ->
                        end).
 
 i_rocksdb_to_ets(I, Ets, Move) ->
-    case ?rocksdb:iterator_move(I, Move) of
+    case rocksdb:iterator_move(I, Move) of
         {ok, << ?INFO_TAG, EncKey/binary >>, EncVal} ->
             Item = decode_key(EncKey),
             Val = decode_val(EncVal),
@@ -1170,10 +1162,10 @@ do_insert(K, V, #st{ets = Ets, ref = Ref, type = bag, maintain_size = true}) ->
     ets_insert_info(Ets, size, NewSz),
     ok;
 do_insert(K, V, #st{ref = Ref, maintain_size = false}) ->
-    ?rocksdb:put(Ref, K, V, []);
+    rocksdb:put(Ref, K, V, []);
 do_insert(K, V, #st{ets = Ets, ref = Ref, maintain_size = true}) ->
     IsNew =
-	case ?rocksdb:get(Ref, K, []) of
+	case rocksdb:get(Ref, K, []) of
 	    {ok, _} ->
 		false;
 	    _ ->
@@ -1183,10 +1175,10 @@ do_insert(K, V, #st{ets = Ets, ref = Ref, maintain_size = true}) ->
 	true ->
 	    NewSz = read_info(size, 0, Ets) + 1,
 	    {Ki, Vi} = info_obj(size, NewSz),
-	    ?rocksdb:write(Ref, [{put, Ki, Vi}, {put, K, V}], []),
+	    rocksdb:write(Ref, [{put, Ki, Vi}, {put, K, V}], []),
 	    ets_insert_info(Ets, size, NewSz);
 	false ->
-	    ?rocksdb:put(Ref, K, V, [])
+	    rocksdb:put(Ref, K, V, [])
     end,
     ok.
 
@@ -1195,7 +1187,7 @@ do_insert_bag(Ref, K, V, CurSz) ->
     with_iterator(
       Ref, fun(I) ->
 		   do_insert_bag_(
-		     KSz, K, ?rocksdb:iterator_move(I, K), I, V, 0, Ref, CurSz)
+		     KSz, K, rocksdb:iterator_move(I, K), I, V, 0, Ref, CurSz)
 	   end).
 
 
@@ -1209,15 +1201,15 @@ do_insert_bag_(Sz, K, Res, I, V, Prev, Ref, TSz) when Prev < ?MAX_BAG ->
 	    TSz;
 	{ok, <<K:Sz/binary, N:?BAG_CNT>>, _} ->
 	    do_insert_bag_(
-	      Sz, K, ?rocksdb:iterator_move(I, next), I, V, N, Ref, TSz);
+	      Sz, K, rocksdb:iterator_move(I, next), I, V, N, Ref, TSz);
 	_ when TSz =:= false ->
 	    Key = <<K/binary, (Prev+1):?BAG_CNT>>,
-	    ?rocksdb:put(Ref, Key, V, []);
+	    rocksdb:put(Ref, Key, V, []);
 	_ ->
 	    NewSz = TSz + 1,
 	    {Ki, Vi} = info_obj(size, NewSz),
 	    Key = <<K/binary, (Prev+1):?BAG_CNT>>,
-	    ?rocksdb:write(Ref, [{put, Ki, Vi}, {put, Key, V}], []),
+	    rocksdb:write(Ref, [{put, Ki, Vi}, {put, Key, V}], []),
 	    NewSz
     end.
 
@@ -1231,14 +1223,14 @@ do_delete(Key, #st{ets = Ets, ref = Ref, type = bag, maintain_size = true}) ->
     ets_insert_info(Ets, size, NewSz),
     ok;
 do_delete(Key, #st{ref = Ref, maintain_size = false}) ->
-    ?rocksdb:delete(Ref, Key, []);
+    rocksdb:delete(Ref, Key, []);
 do_delete(Key, #st{ets = Ets, ref = Ref, maintain_size = true}) ->
     CurSz = read_info(size, 0, Ets),
-    case ?rocksdb:get(Ref, Key, [{fill_cache,true}]) of
+    case rocksdb:get(Ref, Key, [{fill_cache,true}]) of
 	{ok, _} ->
 	    NewSz = CurSz -1,
 	    {Ki, Vi} = info_obj(size, NewSz),
-	    ok = ?rocksdb:write(Ref, [{delete, Key}, {put, Ki, Vi}], []),
+	    ok = rocksdb:write(Ref, [{delete, Key}, {put, Ki, Vi}], []),
 	    ets_insert_info(Ets, size, NewSz);
 	not_found ->
 	    false
@@ -1248,19 +1240,19 @@ do_delete_bag(Sz, Key, Ref, TSz) ->
     Found = 
 	with_iterator(
 	  Ref, fun(I) ->
-		       do_delete_bag_(Sz, Key, ?rocksdb:iterator_move(I, Key),
+		       do_delete_bag_(Sz, Key, rocksdb:iterator_move(I, Key),
 				      Ref, I)
 	       end),
     case {Found, TSz} of
 	{[], _} ->
 	    TSz;
 	{_, false} ->
-	    ?rocksdb:write(Ref, [{delete, K} || K <- Found], []);
+	    rocksdb:write(Ref, [{delete, K} || K <- Found], []);
 	{_, _} ->
 	    N = length(Found),
 	    NewSz = TSz - N,
 	    {Ki, Vi} = info_obj(size, NewSz),
-	    ?rocksdb:write(Ref, [{put, Ki, Vi} |
+	    rocksdb:write(Ref, [{put, Ki, Vi} |
 				 [{delete, K} || K <- Found]], []),
 	    NewSz
     end.
@@ -1268,11 +1260,11 @@ do_delete_bag(Sz, Key, Ref, TSz) ->
 do_delete_bag_(Sz, K, Res, Ref, I) ->
     case Res of
 	{ok, K, _} ->
-	    do_delete_bag_(Sz, K, ?rocksdb:iterator_move(I, next),
+	    do_delete_bag_(Sz, K, rocksdb:iterator_move(I, next),
 			   Ref, I);
 	{ok, <<K:Sz/binary, _:?BAG_CNT>> = Key, _} ->
 	    [Key |
-	     do_delete_bag_(Sz, K, ?rocksdb:iterator_move(I, next),
+	     do_delete_bag_(Sz, K, rocksdb:iterator_move(I, next),
 			    Ref, I)];
 	_ ->
 	    []
@@ -1286,13 +1278,13 @@ do_match_delete(Pat, #st{ets = Ets, ref = Ref, tab = Tab, type = Type,
 	{[], _} ->
 	    ok;
 	{_, false} ->
-	    ?rocksdb:write(Ref, [{delete, K} || K <- Keys], []),
+	    rocksdb:write(Ref, [{delete, K} || K <- Keys], []),
 	    ok;
 	{_, true} ->
 	    CurSz = read_info(size, 0, Ets),
 	    NewSz = max(CurSz - length(Keys), 0),
 	    {Ki, Vi} = info_obj(size, NewSz),
-	    ?rocksdb:write(Ref, [{put, Ki, Vi} |
+	    rocksdb:write(Ref, [{put, Ki, Vi} |
 				 [{delete, K} || K <- Keys]], []),
 	    ets_insert_info(Ets, size, NewSz),
 	    ok
@@ -1352,11 +1344,11 @@ ets_delete_info(Ets, Item) ->
 rocksdb_insert_info(Ref, Item, Val) ->
     EncKey = info_key(Item),
     EncVal = encode_val(Val),
-    ?rocksdb:put(Ref, EncKey, EncVal, []).
+    rocksdb:put(Ref, EncKey, EncVal, []).
 
 rocksdb_delete_info(Ref, Item) ->
     EncKey = info_key(Item),
-    ?rocksdb:delete(Ref, EncKey, []).
+    rocksdb:delete(Ref, EncKey, []).
 
 info_obj(Item, Val) ->
     {info_key(Item), encode_val(Val)}.
@@ -1413,7 +1405,7 @@ i_do_select(I, #sel{keypat = Pfx,
             _ ->
                 Pfx
 	end,
-    select_traverse(?rocksdb:iterator_move(I, StartKey), Limit,
+    select_traverse(rocksdb:iterator_move(I, StartKey), Limit,
 		    Pfx, MS, I, Sel, AccKeys, Acc).
 
 needs_key_only([{HP,_,Body}]) ->
@@ -1483,7 +1475,7 @@ select_traverse({ok, K, V}, Limit, Pfx, MS, I, #sel{tab = Tab} = Sel,
 	    case ets:match_spec_run([Rec], MS) of
 		[] ->
 		    select_traverse(
-		      ?rocksdb:iterator_move(I, next), Limit, Pfx, MS,
+		      rocksdb:iterator_move(I, next), Limit, Pfx, MS,
 		      I, Sel, AccKeys, Acc);
 		[Match] ->
                     Acc1 = if AccKeys ->
@@ -1524,12 +1516,12 @@ traverse_continue(K, 0, Pfx, MS, _I, #sel{limit = Limit, ref = Ref} = Sel, AccKe
 			   end)
      end};
 traverse_continue(_K, Limit, Pfx, MS, I, Sel, AccKeys, Acc) ->
-    select_traverse(?rocksdb:iterator_move(I, next), Limit, Pfx, MS, I, Sel, AccKeys, Acc).
+    select_traverse(rocksdb:iterator_move(I, next), Limit, Pfx, MS, I, Sel, AccKeys, Acc).
 
 iterator_next(I, K) ->
-    case ?rocksdb:iterator_move(I, K) of
+    case rocksdb:iterator_move(I, K) of
 	{ok, K, _} ->
-	    ?rocksdb:iterator_move(I, next);
+	    rocksdb:iterator_move(I, next);
 	Other ->
 	    Other
     end.
