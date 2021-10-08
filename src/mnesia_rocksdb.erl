@@ -367,6 +367,8 @@ prefixes(_) ->
 %% For now, only verify that the type is set or ordered_set.
 %% set is OK as ordered_set is a kind of set.
 check_definition(Alias, Tab, Nodes, Props) ->
+    ?dbg("~p: check_definition(~p, ~p, ~p, ~p);~n Trace: ~s~n",
+         [self(), Alias, Tab, Nodes, Props, pp_stack()]),
     Id = {Alias, Nodes},
     try
         Props1 = lists:map(fun(E) -> check_definition_entry(Tab, Id, E) end, Props),
@@ -377,6 +379,8 @@ check_definition(Alias, Tab, Nodes, Props) ->
     end.
 
 check_definition_entry(_Tab, _Id, {type, T} = P) when T==set; T==ordered_set; T==bag ->
+    ?dbg("~p: check_definition_entry(~p, ~p, ~p);~n Trace: ~s~n",
+         [self(), _Tab, _Id, {type, T}, pp_stack()]),
     P;
 check_definition_entry(Tab, Id, {type, T}) ->
     mnesia:abort({combine_error, Tab, [Id, {type, T}]});
@@ -402,9 +406,16 @@ check_definition_entry(_Tab, _Id, P) ->
 
 %% -> ok | {error, exists}
 create_table(_Alias, Tab, _Props) ->
-    create_mountpoint(Tab).
+    ?dbg("~p: create_table(~p, ~p, ~p);~n Trace: ~s~n",
+         [self(), _Alias, Tab, _Props, pp_stack()]),
+    Res = create_mountpoint(Tab),
+    ?dbg("~p: create_table Res: ~p;~n Trace: ~s~n",
+         [self(), Res, pp_stack()]),
+    Res.
 
 load_table(Alias, Tab, _LoadReason, Opts) ->
+    ?dbg("~p: load_table(~p, ~p, ~p, ~p);~n Trace: ~s~n",
+         [self(), Alias, Tab, _LoadReason, Opts, pp_stack()]),
     Type = proplists:get_value(type, Opts),
     RdbUserProps = proplists:get_value(
                      rocksdb_opts, proplists:get_value(
@@ -422,6 +433,8 @@ load_table(Alias, Tab, _LoadReason, Opts) ->
     end.
 
 load_table_(Alias, Tab, Type, RdbOpts) ->
+    ?dbg("~p: load_table(~p, ~p, ~p, ~p);~n Trace: ~s~n",
+         [self(), Alias, Tab, Type, RdbOpts, pp_stack()]),
     ShutdownTime = proplists:get_value(
                      owner_shutdown_time, RdbOpts, 120000),
     case mnesia_ext_sup:start_proc(
@@ -487,9 +500,9 @@ pp_stack() ->
 pp_calls(I, [{M,F,A,Pos} | T]) ->
     Spc = lists:duplicate(I, $\s),
     Pp = fun(Mx,Fx,Ax,Px) ->
-                [atom_to_list(Mx),":",atom_to_list(Fx),"/",integer_to_list(Ax),
-                 pp_pos(Px)]
-        end,
+                 [atom_to_list(Mx),":",atom_to_list(Fx),"/",integer_to_list(Ax),
+                  pp_pos(Px)]
+         end,
     [Pp(M,F,A,Pos)|[["\n",Spc,Pp(M1,F1,A1,P1)] || {M1,F1,A1,P1} <- T]].
 
 pp_pos([]) -> "";
@@ -721,7 +734,7 @@ lookup_bag_(Sz, Enc, Res, K, I, KP) ->
     end.
 
 match_delete(Alias, Tab, Pat) when is_atom(Pat) ->
-    %do_match_delete(Alias, Tab, '_'),
+                                                %do_match_delete(Alias, Tab, '_'),
     case is_wild(Pat) of
         true ->
             call(Alias, Tab, clear_table),
@@ -1016,7 +1029,7 @@ code_change(_FromVsn, St, _Extra) ->
 
 terminate(_Reason, #st{ref = Ref}) ->
     if Ref =/= undefined ->
-	    ?rocksdb:close(Ref);
+            ?rocksdb:close(Ref);
        true -> ok
     end,
     ok.
@@ -1052,16 +1065,16 @@ rocksdb_open_opts_(RdbOpts) ->
 
 default_open_opts() ->
     [ {create_if_missing, true}
-      , {cache_size,
-         list_to_integer(get_env_default("ROCKSDB_CACHE_SIZE", "32212254"))}
-      , {block_size, 1024}
-      , {max_open_files, 100}
-      , {write_buffer_size,
-         list_to_integer(get_env_default(
-                           "ROCKSDB_WRITE_BUFFER_SIZE", "4194304"))}
-      , {compression,
-         list_to_atom(get_env_default("ROCKSDB_COMPRESSION", "true"))}
-      , {use_bloomfilter, true}
+    , {cache_size,
+       list_to_integer(get_env_default("ROCKSDB_CACHE_SIZE", "32212254"))}
+    , {block_size, 1024}
+    , {max_open_files, 100}
+    , {write_buffer_size,
+       list_to_integer(get_env_default(
+                         "ROCKSDB_WRITE_BUFFER_SIZE", "4194304"))}
+    , {compression,
+       list_to_atom(get_env_default("ROCKSDB_COMPRESSION", "true"))}
+    , {use_bloomfilter, true}
     ].
 
 destroy_recreate(MPd, RdbOpts) ->
@@ -1140,8 +1153,8 @@ destroy_db(_, _, 0, LastError) ->
     {error, LastError};
 destroy_db(MPd, Opts, RetriesLeft, _) ->
     case ?rocksdb:destroy(MPd, Opts) of
-	ok ->
-	    ok;
+        ok ->
+            ok;
         %% Check specifically for lock error, this can be caused if
         %% destroy follows quickly after close.
         {error, {error_db_destroy, Err}=Reason} ->
@@ -1359,9 +1372,9 @@ do_match_delete(Pat, #st{ets = Ets, ref = Ref, tab = Tab, type = Type,
     end.
 
 recover_size_info(#st{ ref = Ref
-                       , tab = Tab
-                       , type = Type
-                       , maintain_size = MaintainSize
+                     , tab = Tab
+                     , type = Type
+                     , maintain_size = MaintainSize
                      } = St) ->
     %% TODO: shall_update_size_info is obsolete, remove
     case shall_update_size_info(Tab) of
@@ -1540,9 +1553,9 @@ select_traverse({ok, K, V}, Limit, Pfx, MS, I, #sel{tab = Tab} = Sel,
                       I, Sel, AccKeys, Acc);
                 [Match] ->
                     Acc1 = if AccKeys ->
-                                  [{K, Match}|Acc];
+                                   [{K, Match}|Acc];
                               true ->
-                                  [Match|Acc]
+                                   [Match|Acc]
                            end,
                     traverse_continue(K, decr(Limit), Pfx, MS, I, Sel, AccKeys, Acc1)
             end;
@@ -1651,10 +1664,10 @@ maybe_store_error(Table, Err, IntTable, delete, [_, K, _], Time) ->
 maybe_store_error(Table, Err, IntTable, write, [_, List, _], Time) ->
     lists:map(fun
                   ({put, K, _}) ->
-                      insert_error(Table, IntTable, K, Err, Time);
+                     insert_error(Table, IntTable, K, Err, Time);
                   ({delete, K}) ->
-                      insert_error(Table, IntTable, K, Err, Time)
-              end, List).
+                     insert_error(Table, IntTable, K, Err, Time)
+             end, List).
 
 insert_error(Table, {Type, _, _}, K, Err, Time) ->
     {_, K1} = decode_key(K),
@@ -1672,13 +1685,13 @@ rpt_op(Op) ->
 
 valid_mnesia_op(Op) ->
     if Op==debug
-     ; Op==verbose
-     ; Op==warning
-     ; Op==error
-     ; Op==fatal ->
-           true;
+       ; Op==verbose
+       ; Op==warning
+       ; Op==error
+       ; Op==fatal ->
+            true;
        true ->
-           false
+            false
     end.
 
 %% ----------------------------------------------------------------------------
