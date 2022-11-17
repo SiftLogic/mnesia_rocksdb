@@ -31,7 +31,7 @@ jobs:
           repo: deb https://apt.kitware.com/ubuntu/ $(lsb_release -c | awk '{print $2}') main
           repo-name: kitware
           keys-asc: https://apt.kitware.com/keys/kitware-archive-latest.asc
-          packages-to-install: cmake-data cmake-curses-gui
+          install: cmake-data cmake-curses-gui
       - name: Compile
         run: rebar3 compile
       - name: Run tests
