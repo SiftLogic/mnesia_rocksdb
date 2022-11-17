@@ -25,17 +25,13 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{matrix.rebar3}}
-      - name: Setup cmake
-        run: |
-          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null ; \
-          N=$(lsb_release -c | awk '{print $2}'); \
-          echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ ${N} main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null ; \
-          apt-get update ; \
-          rm /usr/share/keyrings/kitware-archive-keyring.gpg ; \
-          apt-get install -y kitware-archive-keyring ; \
-          apt-get install -y cmake cmake-data cmake-curses-gui
-      - name: Use cmake
-        run: cmake --version
+      - name: add cmake repo
+        uses: myci-actions/add-deb-repo@10
+        with:
+          repo: deb https://apt.kitware.com/ubuntu/ $(lsb_release -c | awk '{print $2}') main
+          repo-name: kitware
+          keys-asc: https://apt.kitware.com/keys/kitware-archive-latest.asc
+          packages-to-install: cmake-data cmake-curses-gui
       - name: Compile
         run: rebar3 compile
       - name: Run tests
