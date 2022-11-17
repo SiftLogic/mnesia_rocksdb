@@ -20,6 +20,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    # install dependencies
+    - name: cmake
+      run: sudo apt-get update && sudo apt-get install -yq cmake
     - name: Compile
       run: rebar3 compile
     - name: Run tests
