@@ -23,13 +23,13 @@ jobs:
     # install dependencies
     - name: install-cmake
       # You may pin to the exact commit or the version.
-      # uses: Symbitic/install-cmake@301e932c0011b8d12d8bf33d4975fd1e17972709
-      uses: Symbitic/install-cmake@v0.1.0
-      with:
-        # Version of CMake to install
-        cmake: 3.17.2
-        # Version of ninja-build to install
-        ninja: 1.9.0
+      # uses: ssrobins/install-cmake@3822d84c7bbd0d435b866c6afb308060c843124e
+      uses: ssrobins/install-cmake@v1
+      #with:
+      #  # CMake version in the form of 3.24.3 or 3.25.0-rc4 for release candidates
+      #  version: # optional
+      #  # Consider a release candidate when selecting the latest version
+      #  release-candidate: # optional
     - name: Compile
       run: rebar3 compile
     - name: Run tests
